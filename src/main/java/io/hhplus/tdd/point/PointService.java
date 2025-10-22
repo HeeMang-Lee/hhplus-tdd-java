@@ -22,20 +22,20 @@ public class PointService {
     public UserPoint chargePoint(long userId, long amount) {
         UserPoint currentPoint = userPointTable.selectById(userId);
         long newPoint = currentPoint.point() + amount;
-        return userPointTable.insertOrUpdate(userId, newPoint);
+        UserPoint updatedPoint = userPointTable.insertOrUpdate(userId, newPoint);
+        pointHistoryTable.insert(userId, amount, TransactionType.CHARGE, updatedPoint.updateMillis());
+        return updatedPoint;
     }
 
     public UserPoint usePoint(long userId, long amount) {
         UserPoint currentPoint = userPointTable.selectById(userId);
         long newPoint = currentPoint.point() - amount;
-        return userPointTable.insertOrUpdate(userId, newPoint);
+        UserPoint updatedPoint = userPointTable.insertOrUpdate(userId, newPoint);
+        pointHistoryTable.insert(userId, amount, TransactionType.USE, updatedPoint.updateMillis());
+        return updatedPoint;
     }
 
     public List<PointHistory> getPointHistory(long userId) {
-        // 테스트를 통과시키기 위한 최소한의 코드 (하드코딩)
-        return List.of(
-                new PointHistory(1L, 1L, 1000L, TransactionType.CHARGE, System.currentTimeMillis()),
-                new PointHistory(2L, 1L, 300L, TransactionType.USE, System.currentTimeMillis())
-        );
+        return pointHistoryTable.selectAllByUserId(userId);
     }
 }
