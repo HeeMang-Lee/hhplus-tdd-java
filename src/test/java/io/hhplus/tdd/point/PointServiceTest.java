@@ -25,12 +25,14 @@ class PointServiceTest {
     @InjectMocks
     private PointService pointService;
 
+    private static final long FIXED_TIME = 1234567890L;
+
     @Test
     @DisplayName("특정 유저의 포인트를 조회한다")
     void getUserPoint() {
         // given
         long userId = 1L;
-        UserPoint expectedPoint = new UserPoint(userId, 1000L, System.currentTimeMillis());
+        UserPoint expectedPoint = new UserPoint(userId, 1000L, FIXED_TIME);
         when(userPointTable.selectById(userId)).thenReturn(expectedPoint);
 
         // when
@@ -39,6 +41,34 @@ class PointServiceTest {
         // then
         assertThat(result.id()).isEqualTo(userId);
         assertThat(result.point()).isEqualTo(1000L);
+        assertThat(result.updateMillis()).isEqualTo(FIXED_TIME);
         verify(userPointTable, times(1)).selectById(userId);
+    }
+
+    @Test
+    @DisplayName("포인트를 충전한다")
+    void chargePoint() {
+        // given
+        long userId = 1L;
+        long currentAmount = 1000L;
+        long chargeAmount = 500L;
+        long expectedAmount = 1500L;
+
+        UserPoint currentPoint = new UserPoint(userId, currentAmount, FIXED_TIME);
+        UserPoint updatedPoint = new UserPoint(userId, expectedAmount, FIXED_TIME);
+
+        when(userPointTable.selectById(userId)).thenReturn(currentPoint);
+        when(userPointTable.insertOrUpdate(userId, expectedAmount)).thenReturn(updatedPoint);
+
+        // when
+        UserPoint result = pointService.chargePoint(userId, chargeAmount);
+
+        // then
+        assertThat(result.id()).isEqualTo(userId);
+        assertThat(result.point()).isEqualTo(expectedAmount);
+        assertThat(result.updateMillis()).isEqualTo(FIXED_TIME);
+        verify(userPointTable, times(1)).selectById(userId);
+        verify(userPointTable, times(1)).insertOrUpdate(userId, expectedAmount);
+        verify(pointHistoryTable, times(1)).insert(eq(userId), eq(chargeAmount), eq(TransactionType.CHARGE), eq(FIXED_TIME));
     }
 }
