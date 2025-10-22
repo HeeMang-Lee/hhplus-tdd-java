@@ -13,4 +13,8 @@ public class PointService {
     public UserPoint getUserPoint(long userId) {
         return userPointTable.selectById(userId);
     }
+
+    public UserPoint chargePoint(long userId, long amount) {
+        return null;
+    }
 }
