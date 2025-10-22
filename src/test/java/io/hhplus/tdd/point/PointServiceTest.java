@@ -47,4 +47,19 @@ class PointServiceTest {
         assertThat(result.id()).isEqualTo(userId);
         assertThat(result.point()).isEqualTo(500L);
     }
+
+    @Test
+    @DisplayName("특정 유저의 포인트를 사용한다")
+    void usePoint() {
+        // given
+        long userId = 1L;
+        userPointTable.insertOrUpdate(userId, 1000L);
+
+        // when
+        UserPoint result = pointService.usePoint(userId, 300L);
+
+        // then
+        assertThat(result.id()).isEqualTo(userId);
+        assertThat(result.point()).isEqualTo(700L);
+    }
 }
