@@ -15,7 +15,8 @@ public class PointService {
     }
 
     public UserPoint chargePoint(long userId, long amount) {
-        // 테스트를 통과시키기 위한 최소한의 코드 (하드코딩)
-        return new UserPoint(1L, 500L, System.currentTimeMillis());
+        UserPoint currentPoint = userPointTable.selectById(userId);
+        long newPoint = currentPoint.point() + amount;
+        return userPointTable.insertOrUpdate(userId, newPoint);
     }
 }
