@@ -142,4 +142,50 @@ class PointServiceTest {
                 .isInstanceOf(BalanceInsufficientException.class)
                 .hasMessage("잔고가 부족합니다.");
     }
+
+    @Test
+    @DisplayName("동일 유저에 대해 동시에 포인트를 충전하면 최종 금액이 정확해야 한다")
+    void chargePoint_concurrency() throws InterruptedException {
+        // given
+        long userId = 1L;
+        long initialAmount = 0L;
+        long chargeAmount = 1000L;
+        int threadCount = 10;
+        long expectedFinalAmount = initialAmount + (chargeAmount * threadCount); // 10000L
+
+        // 실제 DB처럼 동작하도록 AtomicLong으로 상태 관리
+        java.util.concurrent.atomic.AtomicLong currentAmount = new java.util.concurrent.atomic.AtomicLong(initialAmount);
+
+        when(userPointTable.selectById(userId)).thenAnswer(invocation ->
+            new UserPoint(userId, currentAmount.get(), FIXED_TIME)
+        );
+
+        when(userPointTable.insertOrUpdate(eq(userId), anyLong())).thenAnswer(invocation -> {
+            long amount = invocation.getArgument(1);
+            currentAmount.set(amount);
+            return new UserPoint(userId, amount, FIXED_TIME);
+        });
+
+        // when
+        java.util.concurrent.ExecutorService executorService = java.util.concurrent.Executors.newFixedThreadPool(threadCount);
+        java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(threadCount);
+
+        for (int i = 0; i < threadCount; i++) {
+            executorService.execute(() -> {
+                try {
+                    pointService.chargePoint(userId, chargeAmount);
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+
+        latch.await();
+        executorService.shutdown();
+
+        // then
+        // 락이 있어야 Race Condition 없이 정확히 10000원이 됨
+        long finalAmount = currentAmount.get();
+        assertThat(finalAmount).isEqualTo(expectedFinalAmount);
+    }
 }
