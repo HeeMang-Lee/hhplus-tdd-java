@@ -132,4 +132,36 @@ class PointControllerTest {
                 .andExpect(jsonPath("$.code").value("ValidationError"))
                 .andExpect(jsonPath("$.message").value("잘못된 요청 값입니다."));
     }
+
+    @Test
+    @DisplayName("충전 금액이 1000원 미만이면 실패한다")
+    void chargePoint_lessThanMinimum() throws Exception {
+        // given
+        long userId = 1L;
+        long invalidAmount = 500L;
+
+        // when & then
+        mockMvc.perform(patch("/point/{id}/charge", userId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\":" + invalidAmount + "}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ValidationError"))
+                .andExpect(jsonPath("$.message").value("잘못된 요청 값입니다."));
+    }
+
+    @Test
+    @DisplayName("충전 금액이 1000원 단위가 아니면 실패한다")
+    void chargePoint_notMultipleOf1000() throws Exception {
+        // given
+        long userId = 1L;
+        long invalidAmount = 1500L;
+
+        // when & then
+        mockMvc.perform(patch("/point/{id}/charge", userId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\":" + invalidAmount + "}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ValidationError"))
+                .andExpect(jsonPath("$.message").value("잘못된 요청 값입니다."));
+    }
 }
