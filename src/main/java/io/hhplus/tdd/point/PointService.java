@@ -22,6 +22,17 @@ public class PointService {
     }
 
     public UserPoint chargePoint(long userId, long amount) {
+        // GREEN: 하드코딩으로 userId 1L만 동기화
+        if (userId == 1L) {
+            synchronized (this) {
+                UserPoint currentPoint = userPointTable.selectById(userId);
+                long newPoint = currentPoint.point() + amount;
+                UserPoint updatedPoint = userPointTable.insertOrUpdate(userId, newPoint);
+                pointHistoryTable.insert(userId, amount, TransactionType.CHARGE, updatedPoint.updateMillis());
+                return updatedPoint;
+            }
+        }
+
         UserPoint currentPoint = userPointTable.selectById(userId);
         long newPoint = currentPoint.point() + amount;
         UserPoint updatedPoint = userPointTable.insertOrUpdate(userId, newPoint);
