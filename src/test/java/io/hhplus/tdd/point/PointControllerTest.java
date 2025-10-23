@@ -164,4 +164,38 @@ class PointControllerTest {
                 .andExpect(jsonPath("$.code").value("ValidationError"))
                 .andExpect(jsonPath("$.message").value("잘못된 요청 값입니다."));
     }
+
+    @Test
+    @DisplayName("사용 금액이 100원 단위가 아니면 실패한다")
+    void usePoint_notMultipleOf100() throws Exception {
+        // given
+        long userId = 1L;
+        long invalidAmount = 1050L; // 100원 단위 아님 (50원 포함)
+
+        // when & then
+        mockMvc.perform(patch("/point/{id}/use", userId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\":" + invalidAmount + "}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ValidationError"))
+                .andExpect(jsonPath("$.message").value("잘못된 요청 값입니다."));
+    }
+
+    @Test
+    @DisplayName("사용 금액 100원은 성공한다")
+    void usePoint_100won() throws Exception {
+        // given
+        long userId = 1L;
+        long useAmount = 100L;
+        UserPoint usedPoint = new UserPoint(userId, 900L, FIXED_TIME);
+        when(pointService.usePoint(userId, useAmount)).thenReturn(usedPoint);
+
+        // when & then
+        mockMvc.perform(patch("/point/{id}/use", userId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\":" + useAmount + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(userId))
+                .andExpect(jsonPath("$.point").value(900L));
+    }
 }
