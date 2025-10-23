@@ -52,7 +52,7 @@ class PointControllerTest {
         // when & then
         mockMvc.perform(patch("/point/{id}/charge", userId)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(String.valueOf(amount)))
+                        .content("{\"amount\":" + amount + "}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(userId))
                 .andExpect(jsonPath("$.point").value(amount));
@@ -70,7 +70,7 @@ class PointControllerTest {
         // when & then
         mockMvc.perform(patch("/point/{id}/use", userId)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(String.valueOf(useAmount)))
+                        .content("{\"amount\":" + useAmount + "}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(userId))
                 .andExpect(jsonPath("$.point").value(700L));
@@ -108,7 +108,7 @@ class PointControllerTest {
         // when & then
         mockMvc.perform(patch("/point/{id}/charge", userId)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(String.valueOf(invalidAmount)))
+                        .content("{\"amount\":" + invalidAmount + "}"))
                 .andExpect(status().isBadRequest());
     }
 
@@ -122,7 +122,7 @@ class PointControllerTest {
         // when & then
         mockMvc.perform(patch("/point/{id}/charge", userId)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(String.valueOf(invalidAmount)))
+                        .content("{\"amount\":" + invalidAmount + "}"))
                 .andExpect(status().isBadRequest());
     }
 }

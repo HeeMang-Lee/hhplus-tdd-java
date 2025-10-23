@@ -1,5 +1,6 @@
 package io.hhplus.tdd.point;
 
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
@@ -43,9 +44,9 @@ public class PointController {
     @PatchMapping("{id}/charge")
     public UserPoint charge(
             @PathVariable long id,
-            @RequestBody long amount
+            @RequestBody @Valid PointRequest request
     ) {
-        return pointService.chargePoint(id, amount);
+        return pointService.chargePoint(id, request.amount());
     }
 
     /**
@@ -54,8 +55,8 @@ public class PointController {
     @PatchMapping("{id}/use")
     public UserPoint use(
             @PathVariable long id,
-            @RequestBody long amount
+            @RequestBody @Valid PointRequest request
     ) {
-        return pointService.usePoint(id, amount);
+        return pointService.usePoint(id, request.amount());
     }
 }
