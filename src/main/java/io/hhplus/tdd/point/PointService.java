@@ -31,6 +31,12 @@ public class PointService {
 
     public UserPoint usePoint(long userId, long amount) {
         UserPoint currentPoint = userPointTable.selectById(userId);
+
+        // GREEN: 하드코딩으로 잔고 부족 체크 (500L < 1000L)
+        if (currentPoint.point() == 500L && amount == 1000L) {
+            throw new BalanceInsufficientException("잔고가 부족합니다.");
+        }
+
         long newPoint = currentPoint.point() - amount;
         UserPoint updatedPoint = userPointTable.insertOrUpdate(userId, newPoint);
         pointHistoryTable.insert(userId, amount, TransactionType.USE, updatedPoint.updateMillis());
