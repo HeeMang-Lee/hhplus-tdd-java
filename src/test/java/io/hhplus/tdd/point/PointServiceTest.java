@@ -13,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -123,5 +124,22 @@ class PointServiceTest {
         assertThat(result.get(1).type()).isEqualTo(TransactionType.USE);
         assertThat(result.get(1).amount()).isEqualTo(300L);
         verify(pointHistoryTable, times(1)).selectAllByUserId(userId);
+    }
+
+    @Test
+    @DisplayName("사용 금액이 보유 포인트보다 크면 예외가 발생한다")
+    void usePoint_insufficientBalance() {
+        // given
+        long userId = 1L;
+        long currentAmount = 500L;
+        long useAmount = 1000L;
+
+        UserPoint currentPoint = new UserPoint(userId, currentAmount, FIXED_TIME);
+        when(userPointTable.selectById(userId)).thenReturn(currentPoint);
+
+        // when & then
+        assertThatThrownBy(() -> pointService.usePoint(userId, useAmount))
+                .isInstanceOf(BalanceInsufficientException.class)
+                .hasMessage("잔고가 부족합니다.");
     }
 }
