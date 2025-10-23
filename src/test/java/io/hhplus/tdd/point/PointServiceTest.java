@@ -182,10 +182,16 @@ class PointServiceTest {
 
         latch.await();
         executorService.shutdown();
+        executorService.awaitTermination(10, java.util.concurrent.TimeUnit.SECONDS);
 
         // then
         // 락이 있어야 Race Condition 없이 정확히 10000원이 됨
         long finalAmount = currentAmount.get();
         assertThat(finalAmount).isEqualTo(expectedFinalAmount);
+
+        // 모든 충전이 정확히 처리되었는지 확인
+        verify(userPointTable, times(threadCount)).selectById(userId);
+        verify(userPointTable, times(threadCount)).insertOrUpdate(eq(userId), anyLong());
+        verify(pointHistoryTable, times(threadCount)).insert(eq(userId), eq(chargeAmount), eq(TransactionType.CHARGE), anyLong());
     }
 }
