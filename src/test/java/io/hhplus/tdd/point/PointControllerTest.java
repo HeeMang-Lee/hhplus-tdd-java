@@ -109,7 +109,9 @@ class PointControllerTest {
         mockMvc.perform(patch("/point/{id}/charge", userId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"amount\":" + invalidAmount + "}"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("400"))
+                .andExpect(jsonPath("$.message").exists());
     }
 
     @Test
@@ -123,6 +125,8 @@ class PointControllerTest {
         mockMvc.perform(patch("/point/{id}/charge", userId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"amount\":" + invalidAmount + "}"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("400"))
+                .andExpect(jsonPath("$.message").exists());
     }
 }
