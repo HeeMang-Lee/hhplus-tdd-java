@@ -130,4 +130,121 @@ class PointControllerIntegrationTest {
         String pointStr = jsonResponse.substring(startIndex, endIndex).trim();
         return Long.parseLong(pointStr);
     }
+
+    @Test
+    @DisplayName("대량 거래 부하 시나리오: 수백 건의 동시 거래에도 데이터 정합성이 유지된다")
+    void massiveTransactions_maintainDataIntegrity() throws Exception {
+        // given
+        long userId = 999L; // 다른 테스트와 충돌하지 않도록 높은 ID 사용
+        long initialAmount = 100000L; // 초기 10만원
+        int chargeThreadCount = 50; // 충전 스레드 50개
+        int useThreadCount = 50; // 사용 스레드 50개
+        int totalThreadCount = chargeThreadCount + useThreadCount;
+        long chargeAmount = 1000L; // 각 충전 1000원
+        long useAmount = 500L; // 각 사용 500원
+
+        // 초기 포인트 설정 (충전을 통해)
+        String initialChargeRequest = String.format("{\"amount\":%d}", initialAmount);
+        mockMvc.perform(patch("/point/{id}/charge", userId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(initialChargeRequest))
+                .andExpect(status().isOk());
+
+        // when - 동시에 대량 거래 수행
+        java.util.concurrent.ExecutorService executorService = java.util.concurrent.Executors.newFixedThreadPool(totalThreadCount);
+        java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(totalThreadCount);
+        java.util.concurrent.atomic.AtomicInteger successCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        java.util.concurrent.atomic.AtomicInteger failureCount = new java.util.concurrent.atomic.AtomicInteger(0);
+
+        // 충전 스레드 실행
+        for (int i = 0; i < chargeThreadCount; i++) {
+            executorService.execute(() -> {
+                try {
+                    String chargeRequest = String.format("{\"amount\":%d}", chargeAmount);
+                    mockMvc.perform(patch("/point/{id}/charge", userId)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(chargeRequest))
+                            .andExpect(status().isOk());
+                    successCount.incrementAndGet();
+                } catch (Exception e) {
+                    failureCount.incrementAndGet();
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+
+        // 사용 스레드 실행
+        for (int i = 0; i < useThreadCount; i++) {
+            executorService.execute(() -> {
+                try {
+                    String useRequest = String.format("{\"amount\":%d}", useAmount);
+                    mockMvc.perform(patch("/point/{id}/use", userId)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(useRequest))
+                            .andExpect(status().isOk());
+                    successCount.incrementAndGet();
+                } catch (Exception e) {
+                    failureCount.incrementAndGet();
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+
+        latch.await();
+        executorService.shutdown();
+        executorService.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS);
+
+        // then
+        // 1. 최종 포인트 금액 검증
+        long expectedFinalPoint = initialAmount + (chargeAmount * chargeThreadCount) - (useAmount * useThreadCount);
+        // 100000 + (1000 * 50) - (500 * 50) = 100000 + 50000 - 25000 = 125000
+        MvcResult finalResult = mockMvc.perform(get("/point/{id}", userId))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String finalResponse = finalResult.getResponse().getContentAsString();
+        long finalPoint = extractPointFromResponse(finalResponse);
+        assertThat(finalPoint).isEqualTo(expectedFinalPoint);
+
+        // 2. 거래 내역 검증 - 모든 거래가 기록되었는지 확인
+        MvcResult historyResult = mockMvc.perform(get("/point/{id}/histories", userId))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String historyResponse = historyResult.getResponse().getContentAsString();
+        // 초기 충전 1건 + 대량 거래 100건 = 101건
+        int expectedHistoryCount = 1 + totalThreadCount;
+
+        // JSON 배열의 항목 개수 확인 (간단한 파싱)
+        int historyCount = countJsonArrayElements(historyResponse);
+        assertThat(historyCount).isEqualTo(expectedHistoryCount);
+
+        // 3. 성공/실패 카운트 확인
+        System.out.println("Success count: " + successCount.get());
+        System.out.println("Failure count: " + failureCount.get());
+        assertThat(successCount.get()).isEqualTo(totalThreadCount);
+        assertThat(failureCount.get()).isEqualTo(0);
+    }
+
+    private int countJsonArrayElements(String jsonArrayResponse) {
+        // Simple counting of objects in JSON array
+        // Count the number of '},' or final '}]' patterns
+        if (jsonArrayResponse == null || jsonArrayResponse.isEmpty() || jsonArrayResponse.equals("[]")) {
+            return 0;
+        }
+
+        int count = 0;
+        int index = 0;
+        while ((index = jsonArrayResponse.indexOf("},{", index)) != -1) {
+            count++;
+            index += 2;
+        }
+        // Add 1 for the last element (which doesn't have },{ after it)
+        if (jsonArrayResponse.contains("{")) {
+            count++;
+        }
+        return count;
+    }
 }
