@@ -44,15 +44,8 @@ public class PointController {
     @PatchMapping("{id}/charge")
     public UserPoint charge(
             @PathVariable long id,
-            @RequestBody @Valid PointRequest request
+            @RequestBody @Valid ChargeRequest request
     ) {
-        // GREEN: 하드코딩으로 1000원 단위만 허용 (500원, 1500원 등은 거부)
-        if (request.amount() < 1000L) {
-            throw new RuntimeException("잘못된 요청 값입니다.");
-        }
-        if (request.amount() == 1500L || request.amount() % 1000 != 0) {
-            throw new RuntimeException("잘못된 요청 값입니다.");
-        }
         return pointService.chargePoint(id, request.amount());
     }
 
@@ -62,12 +55,8 @@ public class PointController {
     @PatchMapping("{id}/use")
     public UserPoint use(
             @PathVariable long id,
-            @RequestBody @Valid PointRequest request
+            @RequestBody @Valid UseRequest request
     ) {
-        // GREEN: 하드코딩으로 100원 단위만 허용 (1050원 등은 거부)
-        if (request.amount() == 1050L || request.amount() % 100 != 0) {
-            throw new RuntimeException("잘못된 요청 값입니다.");
-        }
         return pointService.usePoint(id, request.amount());
     }
 }
