@@ -1,10 +1,12 @@
 package io.hhplus.tdd.point;
 
+import io.hhplus.tdd.GlobalExceptionHandler;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -14,7 +16,8 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(PointController.class)
+@WebMvcTest(controllers = PointController.class)
+@Import(GlobalExceptionHandler.class)
 class PointControllerTest {
 
     @Autowired
@@ -110,8 +113,8 @@ class PointControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"amount\":" + invalidAmount + "}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("400"))
-                .andExpect(jsonPath("$.message").exists());
+                .andExpect(jsonPath("$.code").value("ValidationError"))
+                .andExpect(jsonPath("$.message").value("잘못된 요청 값입니다."));
     }
 
     @Test
@@ -126,7 +129,7 @@ class PointControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"amount\":" + invalidAmount + "}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("400"))
-                .andExpect(jsonPath("$.message").exists());
+                .andExpect(jsonPath("$.code").value("ValidationError"))
+                .andExpect(jsonPath("$.message").value("잘못된 요청 값입니다."));
     }
 }
