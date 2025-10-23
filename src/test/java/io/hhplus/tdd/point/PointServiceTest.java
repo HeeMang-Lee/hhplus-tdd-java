@@ -246,4 +246,73 @@ class PointServiceTest {
         verify(userPointTable, times(threadCount)).insertOrUpdate(eq(userId), anyLong());
         verify(pointHistoryTable, times(threadCount)).insert(eq(userId), eq(useAmount), eq(TransactionType.USE), anyLong());
     }
+
+    @Test
+    @DisplayName("동일 유저에 대해 충전과 사용이 동시에 발생하면 최종 금액이 정확해야 한다")
+    void chargeAndUsePoint_concurrency() throws InterruptedException {
+        // given
+        long userId = 1L;
+        long initialAmount = 5000L;
+        long chargeAmount = 1000L;
+        long useAmount = 300L;
+        int chargeThreadCount = 5;
+        int useThreadCount = 5;
+        int totalThreadCount = chargeThreadCount + useThreadCount;
+        // 5000 + (1000 * 5) - (300 * 5) = 8500L
+        long expectedFinalAmount = initialAmount + (chargeAmount * chargeThreadCount) - (useAmount * useThreadCount);
+
+        // 실제 DB처럼 동작하도록 AtomicLong으로 상태 관리
+        java.util.concurrent.atomic.AtomicLong currentAmount = new java.util.concurrent.atomic.AtomicLong(initialAmount);
+
+        when(userPointTable.selectById(userId)).thenAnswer(invocation ->
+            new UserPoint(userId, currentAmount.get(), FIXED_TIME)
+        );
+
+        when(userPointTable.insertOrUpdate(eq(userId), anyLong())).thenAnswer(invocation -> {
+            long amount = invocation.getArgument(1);
+            currentAmount.set(amount);
+            return new UserPoint(userId, amount, FIXED_TIME);
+        });
+
+        // when
+        java.util.concurrent.ExecutorService executorService = java.util.concurrent.Executors.newFixedThreadPool(totalThreadCount);
+        java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(totalThreadCount);
+
+        // 충전 스레드 실행
+        for (int i = 0; i < chargeThreadCount; i++) {
+            executorService.execute(() -> {
+                try {
+                    pointService.chargePoint(userId, chargeAmount);
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+
+        // 사용 스레드 실행
+        for (int i = 0; i < useThreadCount; i++) {
+            executorService.execute(() -> {
+                try {
+                    pointService.usePoint(userId, useAmount);
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+
+        latch.await();
+        executorService.shutdown();
+        executorService.awaitTermination(10, java.util.concurrent.TimeUnit.SECONDS);
+
+        // then
+        // 락이 있어야 Race Condition 없이 정확히 8500원이 됨
+        long finalAmount = currentAmount.get();
+        assertThat(finalAmount).isEqualTo(expectedFinalAmount);
+
+        // 모든 요청이 정확히 처리되었는지 확인
+        verify(userPointTable, times(totalThreadCount)).selectById(userId);
+        verify(userPointTable, times(totalThreadCount)).insertOrUpdate(eq(userId), anyLong());
+        verify(pointHistoryTable, times(chargeThreadCount)).insert(eq(userId), eq(chargeAmount), eq(TransactionType.CHARGE), anyLong());
+        verify(pointHistoryTable, times(useThreadCount)).insert(eq(userId), eq(useAmount), eq(TransactionType.USE), anyLong());
+    }
 }
