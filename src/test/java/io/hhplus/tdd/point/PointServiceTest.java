@@ -315,4 +315,106 @@ class PointServiceTest {
         verify(pointHistoryTable, times(chargeThreadCount)).insert(eq(userId), eq(chargeAmount), eq(TransactionType.CHARGE), anyLong());
         verify(pointHistoryTable, times(useThreadCount)).insert(eq(userId), eq(useAmount), eq(TransactionType.USE), anyLong());
     }
+
+    @Test
+    @DisplayName("동시 거래 발생 시 내역 기록이 정확히 저장되어야 한다")
+    void pointHistory_concurrency() throws InterruptedException {
+        // given
+        long userId = 1L;
+        long initialAmount = 10000L;
+        long chargeAmount = 1000L;
+        long useAmount = 500L;
+        int chargeThreadCount = 10;
+        int useThreadCount = 10;
+        int totalThreadCount = chargeThreadCount + useThreadCount;
+
+        // 실제 내역을 저장하는 리스트 (thread-safe하게 관리)
+        java.util.List<PointHistory> historyList = new java.util.concurrent.CopyOnWriteArrayList<>();
+        java.util.concurrent.atomic.AtomicLong historyIdCounter = new java.util.concurrent.atomic.AtomicLong(1L);
+        java.util.concurrent.atomic.AtomicLong currentAmount = new java.util.concurrent.atomic.AtomicLong(initialAmount);
+
+        when(userPointTable.selectById(userId)).thenAnswer(invocation ->
+            new UserPoint(userId, currentAmount.get(), FIXED_TIME)
+        );
+
+        when(userPointTable.insertOrUpdate(eq(userId), anyLong())).thenAnswer(invocation -> {
+            long amount = invocation.getArgument(1);
+            currentAmount.set(amount);
+            return new UserPoint(userId, amount, FIXED_TIME);
+        });
+
+        // insert 호출 시 실제 내역 저장
+        when(pointHistoryTable.insert(eq(userId), anyLong(), any(TransactionType.class), anyLong()))
+            .thenAnswer(invocation -> {
+                long amount = invocation.getArgument(1);
+                TransactionType type = invocation.getArgument(2);
+                long updateMillis = invocation.getArgument(3);
+                PointHistory history = new PointHistory(
+                    historyIdCounter.getAndIncrement(),
+                    userId,
+                    amount,
+                    type,
+                    updateMillis
+                );
+                historyList.add(history);
+                return history;
+            });
+
+        // when
+        java.util.concurrent.ExecutorService executorService = java.util.concurrent.Executors.newFixedThreadPool(totalThreadCount);
+        java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(totalThreadCount);
+
+        // 충전 스레드 실행
+        for (int i = 0; i < chargeThreadCount; i++) {
+            executorService.execute(() -> {
+                try {
+                    pointService.chargePoint(userId, chargeAmount);
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+
+        // 사용 스레드 실행
+        for (int i = 0; i < useThreadCount; i++) {
+            executorService.execute(() -> {
+                try {
+                    pointService.usePoint(userId, useAmount);
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+
+        latch.await();
+        executorService.shutdown();
+        executorService.awaitTermination(10, java.util.concurrent.TimeUnit.SECONDS);
+
+        // then
+        // 1. 모든 내역이 정확히 기록되었는지 확인 (중복 없이)
+        assertThat(historyList).hasSize(totalThreadCount);
+
+        // 2. 충전 내역 개수 확인
+        long chargeCount = historyList.stream()
+            .filter(h -> h.type() == TransactionType.CHARGE)
+            .count();
+        assertThat(chargeCount).isEqualTo(chargeThreadCount);
+
+        // 3. 사용 내역 개수 확인
+        long useCount = historyList.stream()
+            .filter(h -> h.type() == TransactionType.USE)
+            .count();
+        assertThat(useCount).isEqualTo(useThreadCount);
+
+        // 4. 모든 내역의 ID가 고유한지 확인 (중복 없음)
+        long uniqueIdCount = historyList.stream()
+            .map(PointHistory::id)
+            .distinct()
+            .count();
+        assertThat(uniqueIdCount).isEqualTo(totalThreadCount);
+
+        // 5. 모든 insert 호출이 정확히 이루어졌는지 확인
+        verify(pointHistoryTable, times(chargeThreadCount)).insert(eq(userId), eq(chargeAmount), eq(TransactionType.CHARGE), anyLong());
+        verify(pointHistoryTable, times(useThreadCount)).insert(eq(userId), eq(useAmount), eq(TransactionType.USE), anyLong());
+    }
 }

@@ -28,28 +28,24 @@ public class PointService {
     }
 
     public UserPoint chargePoint(long userId, long amount) {
-        synchronized (getUserLock(userId)) {
-            UserPoint currentPoint = userPointTable.selectById(userId);
-            long newPoint = currentPoint.point() + amount;
-            UserPoint updatedPoint = userPointTable.insertOrUpdate(userId, newPoint);
-            pointHistoryTable.insert(userId, amount, TransactionType.CHARGE, updatedPoint.updateMillis());
-            return updatedPoint;
-        }
+        UserPoint currentPoint = userPointTable.selectById(userId);
+        long newPoint = currentPoint.point() + amount;
+        UserPoint updatedPoint = userPointTable.insertOrUpdate(userId, newPoint);
+        pointHistoryTable.insert(userId, amount, TransactionType.CHARGE, updatedPoint.updateMillis());
+        return updatedPoint;
     }
 
     public UserPoint usePoint(long userId, long amount) {
-        synchronized (getUserLock(userId)) {
-            UserPoint currentPoint = userPointTable.selectById(userId);
+        UserPoint currentPoint = userPointTable.selectById(userId);
 
-            if (currentPoint.point() < amount) {
-                throw new BalanceInsufficientException("잔고가 부족합니다.");
-            }
-
-            long newPoint = currentPoint.point() - amount;
-            UserPoint updatedPoint = userPointTable.insertOrUpdate(userId, newPoint);
-            pointHistoryTable.insert(userId, amount, TransactionType.USE, updatedPoint.updateMillis());
-            return updatedPoint;
+        if (currentPoint.point() < amount) {
+            throw new BalanceInsufficientException("잔고가 부족합니다.");
         }
+
+        long newPoint = currentPoint.point() - amount;
+        UserPoint updatedPoint = userPointTable.insertOrUpdate(userId, newPoint);
+        pointHistoryTable.insert(userId, amount, TransactionType.USE, updatedPoint.updateMillis());
+        return updatedPoint;
     }
 
     public List<PointHistory> getPointHistory(long userId) {
