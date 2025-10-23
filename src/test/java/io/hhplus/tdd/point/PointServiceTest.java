@@ -194,4 +194,56 @@ class PointServiceTest {
         verify(userPointTable, times(threadCount)).insertOrUpdate(eq(userId), anyLong());
         verify(pointHistoryTable, times(threadCount)).insert(eq(userId), eq(chargeAmount), eq(TransactionType.CHARGE), anyLong());
     }
+
+    @Test
+    @DisplayName("동일 유저에 대해 동시에 포인트를 사용하면 최종 금액이 정확해야 한다")
+    void usePoint_concurrency() throws InterruptedException {
+        // given
+        long userId = 1L;
+        long initialAmount = 10000L;
+        long useAmount = 500L;
+        int threadCount = 10;
+        long expectedFinalAmount = initialAmount - (useAmount * threadCount); // 5000L
+
+        // 실제 DB처럼 동작하도록 AtomicLong으로 상태 관리
+        java.util.concurrent.atomic.AtomicLong currentAmount = new java.util.concurrent.atomic.AtomicLong(initialAmount);
+
+        when(userPointTable.selectById(userId)).thenAnswer(invocation ->
+            new UserPoint(userId, currentAmount.get(), FIXED_TIME)
+        );
+
+        when(userPointTable.insertOrUpdate(eq(userId), anyLong())).thenAnswer(invocation -> {
+            long amount = invocation.getArgument(1);
+            currentAmount.set(amount);
+            return new UserPoint(userId, amount, FIXED_TIME);
+        });
+
+        // when
+        java.util.concurrent.ExecutorService executorService = java.util.concurrent.Executors.newFixedThreadPool(threadCount);
+        java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(threadCount);
+
+        for (int i = 0; i < threadCount; i++) {
+            executorService.execute(() -> {
+                try {
+                    pointService.usePoint(userId, useAmount);
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+
+        latch.await();
+        executorService.shutdown();
+        executorService.awaitTermination(10, java.util.concurrent.TimeUnit.SECONDS);
+
+        // then
+        // 락이 있어야 Race Condition 없이 정확히 5000원이 됨
+        long finalAmount = currentAmount.get();
+        assertThat(finalAmount).isEqualTo(expectedFinalAmount);
+
+        // 모든 사용이 정확히 처리되었는지 확인
+        verify(userPointTable, times(threadCount)).selectById(userId);
+        verify(userPointTable, times(threadCount)).insertOrUpdate(eq(userId), anyLong());
+        verify(pointHistoryTable, times(threadCount)).insert(eq(userId), eq(useAmount), eq(TransactionType.USE), anyLong());
+    }
 }
