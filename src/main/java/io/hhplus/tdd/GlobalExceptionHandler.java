@@ -16,4 +16,10 @@ public class GlobalExceptionHandler {
         ErrorResponse response = new ErrorResponse("ValidationError", "잘못된 요청 값입니다.");
         return ResponseEntity.badRequest().body(response);
     }
+
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<ErrorResponse> handleRuntimeException(RuntimeException e) {
+        ErrorResponse response = new ErrorResponse("ValidationError", e.getMessage());
+        return ResponseEntity.badRequest().body(response);
+    }
 }
