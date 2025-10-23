@@ -3,40 +3,51 @@ package io.hhplus.tdd.point;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.List;
+
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
-@AutoConfigureMockMvc
+@WebMvcTest(PointController.class)
 class PointControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @MockBean
+    private PointService pointService;
+
+    private static final long FIXED_TIME = 1234567890L;
 
     @Test
     @DisplayName("특정 유저의 포인트를 조회한다")
     void getUserPoint() throws Exception {
         // given
         long userId = 1L;
+        UserPoint userPoint = new UserPoint(userId, 1000L, FIXED_TIME);
+        when(pointService.getUserPoint(userId)).thenReturn(userPoint);
 
         // when & then
         mockMvc.perform(get("/point/{id}", userId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(userId))
-                .andExpect(jsonPath("$.point").isNumber());
+                .andExpect(jsonPath("$.point").value(1000L));
     }
 
     @Test
-    @DisplayName("특정 유저의 포인트를 충전한다")
+    @DisplayName("포인트를 충전한다")
     void chargePoint() throws Exception {
         // given
-        long userId = 2L;
-        long amount = 1000L;
+        long userId = 1L;
+        long amount = 500L;
+        UserPoint chargedPoint = new UserPoint(userId, amount, FIXED_TIME);
+        when(pointService.chargePoint(userId, amount)).thenReturn(chargedPoint);
 
         // when & then
         mockMvc.perform(patch("/point/{id}/charge", userId)
@@ -48,39 +59,33 @@ class PointControllerTest {
     }
 
     @Test
-    @DisplayName("포인트 충전 후 사용한다")
-    void chargeAndUsePoint() throws Exception {
+    @DisplayName("포인트를 사용한다")
+    void usePoint() throws Exception {
         // given
-        long userId = 3L;
-        long chargeAmount = 1000L;
+        long userId = 1L;
         long useAmount = 300L;
+        UserPoint usedPoint = new UserPoint(userId, 700L, FIXED_TIME);
+        when(pointService.usePoint(userId, useAmount)).thenReturn(usedPoint);
 
-        // when - 충전
-        mockMvc.perform(patch("/point/{id}/charge", userId)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(String.valueOf(chargeAmount)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.point").value(chargeAmount));
-
-        // then - 사용
+        // when & then
         mockMvc.perform(patch("/point/{id}/use", userId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(String.valueOf(useAmount)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.point").value(chargeAmount - useAmount));
+                .andExpect(jsonPath("$.id").value(userId))
+                .andExpect(jsonPath("$.point").value(700L));
     }
 
     @Test
     @DisplayName("포인트 내역을 조회한다")
     void getPointHistory() throws Exception {
         // given
-        long userId = 4L;
-        mockMvc.perform(patch("/point/{id}/charge", userId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("1000"));
-        mockMvc.perform(patch("/point/{id}/use", userId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("300"));
+        long userId = 1L;
+        List<PointHistory> histories = List.of(
+                new PointHistory(1L, userId, 1000L, TransactionType.CHARGE, FIXED_TIME),
+                new PointHistory(2L, userId, 300L, TransactionType.USE, FIXED_TIME)
+        );
+        when(pointService.getPointHistory(userId)).thenReturn(histories);
 
         // when & then
         mockMvc.perform(get("/point/{id}/histories", userId))
