@@ -97,4 +97,32 @@ class PointControllerTest {
                 .andExpect(jsonPath("$[1].type").value("USE"))
                 .andExpect(jsonPath("$[1].amount").value(300));
     }
+
+    @Test
+    @DisplayName("충전 금액이 0이면 실패한다")
+    void chargePoint_invalidAmount_zero() throws Exception {
+        // given
+        long userId = 1L;
+        long invalidAmount = 0L;
+
+        // when & then
+        mockMvc.perform(patch("/point/{id}/charge", userId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(String.valueOf(invalidAmount)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("충전 금액이 음수면 실패한다")
+    void chargePoint_invalidAmount_negative() throws Exception {
+        // given
+        long userId = 1L;
+        long invalidAmount = -100L;
+
+        // when & then
+        mockMvc.perform(patch("/point/{id}/charge", userId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(String.valueOf(invalidAmount)))
+                .andExpect(status().isBadRequest());
+    }
 }
