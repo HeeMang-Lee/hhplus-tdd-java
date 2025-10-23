@@ -48,7 +48,7 @@ class PointControllerTest {
     void chargePoint() throws Exception {
         // given
         long userId = 1L;
-        long amount = 500L;
+        long amount = 1000L;
         UserPoint chargedPoint = new UserPoint(userId, amount, FIXED_TIME);
         when(pointService.chargePoint(userId, amount)).thenReturn(chargedPoint);
 
@@ -66,8 +66,8 @@ class PointControllerTest {
     void usePoint() throws Exception {
         // given
         long userId = 1L;
-        long useAmount = 300L;
-        UserPoint usedPoint = new UserPoint(userId, 700L, FIXED_TIME);
+        long useAmount = 1000L;
+        UserPoint usedPoint = new UserPoint(userId, 0L, FIXED_TIME);
         when(pointService.usePoint(userId, useAmount)).thenReturn(usedPoint);
 
         // when & then
@@ -76,7 +76,7 @@ class PointControllerTest {
                         .content("{\"amount\":" + useAmount + "}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(userId))
-                .andExpect(jsonPath("$.point").value(700L));
+                .andExpect(jsonPath("$.point").value(0L));
     }
 
     @Test
